@@ -1,0 +1,7 @@
+# Optional: copy this file to `.cargo/config.toml` (git-ignored) so the SDK builds into Monaka's
+# `target`, beside the launcher: the channel harness and probe (`cargo build --release -p
+# monaka_channel --example harness`) are then where `monaka_play harness` looks for them, and the
+# game packs that build there share the SDK's compiled crates.
+
+[build]
+target-dir = "../monaka_vr/target"

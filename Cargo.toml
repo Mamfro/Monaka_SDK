@@ -1,0 +1,40 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.88"
+license = "GPL-3.0-only"
+repository = "https://github.com/Mamfro/monaka_sdk"
+
+[workspace.dependencies]
+monaka_body = { path = "crates/body" }
+monaka_contract = { path = "crates/contract" }
+monaka_core = { path = "crates/core" }
+monaka_channel = { path = "crates/channel" }
+monaka_ffx = { path = "crates/ffx" }
+monaka_framegen = { path = "crates/framegen" }
+monaka_fsr11 = { path = "crates/fsr11" }
+monaka_gl = { path = "crates/gl" }
+monaka_hook = { path = "crates/hook" }
+monaka_pad = { path = "crates/pad" }
+monaka_producer = { path = "crates/producer" }
+monaka_stereo = { path = "crates/stereo" }
+monaka_streamline = { path = "crates/streamline" }
+monaka_warp = { path = "crates/warp" }
+monaka_vulkan = { path = "crates/vulkan" }
+windows = "0.62"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+# Code that runs inside a game must never unwind into the game's frames.
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+# Small edits rebuild in seconds (each crate recompiles only what changed).
+incremental = true
