@@ -697,6 +697,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     for (name, panel) in &saved_panels {
         let (w, h, mut rgba) = read_image(&device, &context, panel)?;
+        // Its coverage, which the PNG leaves out: how much of the panel the headset would show.
+        let alphas: Vec<u8> = rgba.as_chunks::<4>().0.iter().map(|px| px[3]).collect();
+        let covered = alphas.iter().filter(|&&a| a >= 128).count();
+        let lit = rgba.as_chunks::<4>().0.iter().filter(|px| px[..3].iter().any(|&c| c >= 128)).count();
+        println!(
+            "{name}: alpha {}..{}, {covered} of {} pixels at least half covered, {lit} with a bright colour",
+            alphas.iter().min().unwrap_or(&0),
+            alphas.iter().max().unwrap_or(&0),
+            alphas.len()
+        );
         // Premultiplied over mid grey, so the panel's shape shows.
         for px in rgba.as_chunks_mut::<4>().0 {
             let a = u32::from(px[3]);

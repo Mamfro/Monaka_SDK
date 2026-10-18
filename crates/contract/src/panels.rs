@@ -19,6 +19,9 @@ pub enum Side {
     BackOfHand,
     /// Just above the palm (the fingers curl round the handle there).
     Palm,
+    /// On top of a big gun held in the hand, above and ahead of the handle, tilted back toward the
+    /// eyes.
+    Top,
 }
 
 /// Where one piece's panel goes.
@@ -41,7 +44,7 @@ pub struct PanelPlace {
     /// The piece's name, zero-padded UTF-8.
     pub name: [u8; PANEL_NAME_LEN],
     pub hand: u32,
-    /// 0 the back of the hand, 1 the palm.
+    /// 0 the back of the hand, 1 the palm, 2 the top.
     pub side: u32,
     pub width: f32,
     pub beside: u32,
@@ -58,6 +61,7 @@ impl PanelPlace {
         let side = match place.side {
             Side::BackOfHand => 0,
             Side::Palm => 1,
+            Side::Top => 2,
         };
         Some(Self { name: bytes, hand: place.hand as u32, side, width: place.width, beside: place.beside as u32 })
     }
@@ -73,6 +77,7 @@ impl PanelPlace {
         let side = match self.side {
             0 => Side::BackOfHand,
             1 => Side::Palm,
+            2 => Side::Top,
             _ => return None,
         };
         (self.width > 0.0 && self.width.is_finite()).then_some((name, Place { hand, side, width: self.width, beside: self.beside != 0 }))

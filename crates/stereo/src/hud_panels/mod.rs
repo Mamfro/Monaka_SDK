@@ -64,6 +64,8 @@ pub mod places {
     const HAND_WIDTH: f32 = 0.08;
     const LIST_WIDTH: f32 = 0.20;
     const ICON_WIDTH: f32 = 0.05;
+    /// A panel on top of a big gun: wide enough to read along it.
+    const TOP_WIDTH: f32 = 0.16;
 
     pub const MINIMAP: Place = Place { hand: RIGHT_HAND, side: Side::BackOfHand, width: HAND_WIDTH, beside: false };
     pub const QUESTS: Place = Place { hand: RIGHT_HAND, side: Side::BackOfHand, width: LIST_WIDTH, beside: true };
@@ -71,6 +73,8 @@ pub mod places {
     pub const HEALTH: Place = Place { hand: LEFT_HAND, side: Side::BackOfHand, width: HAND_WIDTH, beside: false };
     pub const TOOL: Place = Place { hand: LEFT_HAND, side: Side::Palm, width: ICON_WIDTH, beside: false };
     pub const WEAPON_LEFT: Place = Place { hand: LEFT_HAND, side: Side::Palm, width: HAND_WIDTH, beside: false };
+    /// A big gun's ammo on top of it, tilted back toward the eyes.
+    pub const WEAPON_TOP: Place = Place { hand: RIGHT_HAND, side: Side::Top, width: TOP_WIDTH, beside: false };
 }
 
 /// A game whose HUD pieces go on the hands. Its pieces are named by their index in [`PIECES`]
@@ -90,7 +94,9 @@ pub trait HudPieces: Game {
 /// A game whose pieces are cut out of its HUD layer ([`d3d12`]): where each lies in the layer.
 pub trait LayerPieces: HudPieces {
     /// The layer's alpha is how much of what is behind shows through (1 where nothing is drawn, as
-    /// id Tech 6 keeps its GUI), not its coverage.
+    /// id Tech 6 keeps its GUI), not its coverage. Some of what such a GUI draws (Wolfenstein II's
+    /// text) leaves that alpha alone, so a panel takes a pixel as at least as covered as it is
+    /// bright (the GUI is drawn over black).
     const SEE_THROUGH: bool = false;
     /// Each piece's box this frame, by its index in `PIECES` (left, top, right, bottom in the
     /// layer's pixels); `None` for a piece not shown. Asked at each present before the crops.
