@@ -602,12 +602,20 @@ impl Values {
     /// saved values come back when developer mode is turned on again.
     pub fn for_run(&self, owners: &[&Manifest]) -> Values {
         let mut values = self.clone();
-        if !self.switch(&MONAKA, DEV_MODE.id) {
-            for opt in owners.iter().flat_map(|owner| owner.options).filter(|opt| opt.dev) {
-                values.0.remove(opt.id);
+        if !self.dev() {
+            for opt in owners.iter().flat_map(|owner| owner.options) {
+                let experimental = || self.0.get(opt.id).is_some_and(|value| experimental_choice(opt, value));
+                if opt.dev || experimental() {
+                    values.0.remove(opt.id);
+                }
             }
         }
         values
+    }
+
+    /// Developer mode ([`DEV_MODE`]).
+    fn dev(&self) -> bool {
+        self.switch(&MONAKA, DEV_MODE.id)
     }
 
     /// Whether `opt` means anything with these values (its [`Opt::when`] holds).
@@ -616,11 +624,18 @@ impl Values {
     }
 
     /// The choices of `opt` the window offers with these values: its window's, less the aims the
-    /// device in hand cannot make ([`aim_fits`]).
+    /// device in hand cannot make ([`aim_fits`]) and, outside developer mode, the experimental
+    /// ones ([`EXPERIMENTAL_CHOICE`]).
     pub fn shown_choices(&self, game: &Manifest, opt: &Opt) -> Vec<(&'static str, &'static str)> {
         let Kind::Choice { choices, window, .. } = opt.kind else { return Vec::new() };
         let device = self.text(game, PLAY_WITH.id);
-        choices[..window.min(choices.len())].iter().copied().filter(|(id, _)| opt.id != AIM_ID || aim_fits(&device, id)).collect()
+        let dev = self.dev();
+        choices[..window.min(choices.len())]
+            .iter()
+            .copied()
+            .filter(|(id, _)| opt.id != AIM_ID || aim_fits(&device, id))
+            .filter(|(id, _)| dev || !experimental_choice(opt, id))
+            .collect()
     }
 
     /// The texts of `how`'s ways that hold with these values, in order.
@@ -969,7 +984,7 @@ pub const MENU_REACH_DEPTH: Opt = opt(
 .to_viewer();
 
 /// A layout test: the controllers at hand act like Quest's or Index's in the viewer (what those lack
-/// hidden, the left grip standing in for their d-pad layer). Never for play.
+/// hidden, the left grip standing in for their d-pad layer). Never for play, so for testers only.
 pub const CONTROLLER_PROXY: Opt = opt(
     "controller_proxy",
     "Controller test",
@@ -978,7 +993,8 @@ pub const CONTROLLER_PROXY: Opt = opt(
 )
 .on(Shown::Controls)
 .launcher()
-.to_viewer();
+.to_viewer()
+.dev();
 
 pub const HUD_DISTANCE: Opt = opt("hud_distance", "HUD distance (m)", "How far away the HUD appears.", Kind::Number { min: 0.5, max: 20.0, step: 0.1, default: 2.0 })
     .on(Shown::Hud)
@@ -1077,7 +1093,7 @@ pub fn is_shared(id: &str) -> bool {
 pub const CONTROLLER_SMOOTHING: Opt = opt(
     "controller_smoothing",
     "Controller smoothing",
-    "Steadies small shakes in the controllers' tracking, in every game. Quick movements stay quick. 0 is off.",
+    "Reduces controller jitter without slowing down fast movements. 0 turns it off.",
     Kind::Number { min: 0.0, max: 10.0, step: 1.0, default: 3.0 },
 )
 .on(Shown::Monaka)
@@ -1086,7 +1102,7 @@ pub const CONTROLLER_SMOOTHING: Opt = opt(
 
 /// The headset home's panels as frosted glass: the game shows through them blurred (the viewer
 /// blurs the eyes behind each panel). Off: solid panels, and no blur pass.
-pub const FROSTED_PANELS: Opt = opt("frosted_panels", "Frosted panels", "Off: Monaka's headset panels are solid, a little lighter on the GPU.", Kind::Switch { default: true })
+pub const FROSTED_PANELS: Opt = opt("frosted_panels", "Frosted panels", "", Kind::Switch { default: true })
     .on(Shown::Monaka)
     .launcher()
     .to_viewer();
@@ -1107,11 +1123,24 @@ pub const DIAGNOSTIC_LOGGING: Opt =
 pub const DEV_MODE: Opt = opt(
     "dev_mode",
     "Developer mode",
-    "Shows game settings that are still being tried out. Turned off, they are hidden and back at their defaults.",
+    "Shows settings that are still being tested.",
     Kind::Switch { default: false },
 )
 .on(Shown::Monaka)
 .launcher();
+
+/// What the label of a choice still being tried out ends with (`monaka_core::rendering`'s
+/// experimental stereo methods and frame generators). Outside developer mode ([`DEV_MODE`]) the
+/// window does not offer one and a run takes the option's default instead, unless it is the
+/// default.
+pub const EXPERIMENTAL_CHOICE: &str = ", experimental";
+
+/// Whether `value` of `opt` is an experimental choice ([`EXPERIMENTAL_CHOICE`]) other than its
+/// default.
+pub fn experimental_choice(opt: &Opt, value: &str) -> bool {
+    let Kind::Choice { choices, default, .. } = opt.kind else { return false };
+    !value.eq_ignore_ascii_case(default) && choices.iter().any(|(id, label)| id.eq_ignore_ascii_case(value) && label.ends_with(EXPERIMENTAL_CHOICE))
+}
 
 /// The run-folder file whose presence turns [`DIAGNOSTIC_LOGGING`] on in the producer.
 pub const DIAGNOSTIC_MARKER: &str = "diagnostic-logging.on";

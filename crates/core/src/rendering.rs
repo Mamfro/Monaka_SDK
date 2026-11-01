@@ -18,7 +18,7 @@ use crate::options::Options;
 pub type Offer = (&'static str, &'static str);
 
 /// What a label ends with when the game marks its choice experimental.
-const EXPERIMENTAL: &str = ", experimental";
+const EXPERIMENTAL: &str = monaka_contract::manifest::EXPERIMENTAL_CHOICE;
 
 /// How the two eyes are made.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

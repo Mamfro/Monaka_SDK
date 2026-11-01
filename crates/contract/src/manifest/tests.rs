@@ -89,6 +89,19 @@ fn a_developer_option_is_at_its_default_without_developer_mode() {
 }
 
 #[test]
+fn an_experimental_choice_needs_developer_mode() {
+    const METHOD: Opt = opt("method", "Method", "", Kind::Choice { choices: &[("plain", "Plain"), ("new", "New, experimental")], default: "plain", window: 2 });
+    const TRIED: Manifest = Manifest { options: &[METHOD], ..TEST };
+    let mut saved = Values::default();
+    saved.set("method", "new");
+    assert_eq!(saved.shown_choices(&TRIED, &METHOD), [("plain", "Plain")], "hidden");
+    assert_eq!(saved.for_run(&[&TRIED, &MONAKA]).text(&TRIED, "method"), "plain", "at its default");
+    saved.set(DEV_MODE.id, "1");
+    assert_eq!(saved.shown_choices(&TRIED, &METHOD).len(), 2);
+    assert_eq!(saved.for_run(&[&TRIED, &MONAKA]).text(&TRIED, "method"), "new", "developer mode: as saved");
+}
+
+#[test]
 fn sizes_read_either_way() {
     assert_eq!(parse_size("2644x2644"), Some((2644, 2644)));
     assert_eq!(parse_size(" 2416 2644\n"), Some((2416, 2644)));
