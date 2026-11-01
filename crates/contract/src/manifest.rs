@@ -842,7 +842,7 @@ pub const AIM_ID: &str = "aim";
 /// window offers the ones the device in hand can make ([`aim_fits`]), and none when that leaves
 /// one.
 pub const fn aim(choices: &'static [(&'static str, &'static str)], default: &'static str) -> Opt {
-    opt(AIM_ID, "Aim", "What points your weapon.", choice(choices, default)).on(Shown::Controls)
+    opt(AIM_ID, "Aim", "Aim method. Motion controls is preferred unless you are not planning to use VR controllers.", choice(choices, default)).on(Shown::Controls)
 }
 
 /// What the player holds ([`PLAY_WITH`]).
@@ -1030,7 +1030,7 @@ pub const TURN: Opt =
 
 /// The VR controllers as the game's gamepad (`monaka_pad`).
 pub const CONTROLLER_PAD: Opt =
-    opt("controller_pad", "Controllers as gamepad", "Sticks and buttons act as the game's gamepad.", Kind::Switch { default: true })
+    opt("controller_pad", "Controllers as gamepad", "Emulate a gamepad with your VR controllers.", Kind::Switch { default: true })
         .on(Shown::Controls)
         .shared();
 
@@ -1093,7 +1093,7 @@ pub fn is_shared(id: &str) -> bool {
 pub const CONTROLLER_SMOOTHING: Opt = opt(
     "controller_smoothing",
     "Controller smoothing",
-    "Reduces controller jitter without slowing down fast movements. 0 turns it off.",
+    "Smoothes out controller movement.",
     Kind::Number { min: 0.0, max: 10.0, step: 1.0, default: 3.0 },
 )
 .on(Shown::Monaka)
@@ -1113,7 +1113,7 @@ pub const FROSTED_PANELS: Opt = opt("frosted_panels", "Frosted panels", "", Kind
 /// leaves [`DIAGNOSTIC_MARKER`] in the run folder, and the window adds or removes it while VR runs,
 /// so it can change mid-run.
 pub const DIAGNOSTIC_LOGGING: Opt =
-    opt("diagnostic_logging", "Diagnostic logging", "More detail in the logs, for bug reports. Stops by itself at 64 MB per run.", Kind::Switch { default: false })
+    opt("diagnostic_logging", "Diagnostic logging", "More detailed logging.", Kind::Switch { default: false })
         .on(Shown::Monaka)
         .launcher();
 
@@ -1123,7 +1123,7 @@ pub const DIAGNOSTIC_LOGGING: Opt =
 pub const DEV_MODE: Opt = opt(
     "dev_mode",
     "Developer mode",
-    "Shows settings that are still being tested.",
+    "Access to options that are not ready for release.",
     Kind::Switch { default: false },
 )
 .on(Shown::Monaka)
@@ -1182,7 +1182,7 @@ pub const LIVE: &[Opt] = &[CONTROLLER_SMOOTHING, menu_reach(""), MENU_REACH_DEPT
 pub const DISABLE_VIEW_BOBBING: Opt = opt(
     "disable_view_bobbing",
     "Disable view bobbing",
-    "The view stays level while you walk and run, instead of rising and falling with the character's steps, in every game that can.",
+    "",
     Kind::Switch { default: true },
 )
 .on(Shown::Monaka);
@@ -1192,7 +1192,7 @@ pub const DISABLE_VIEW_BOBBING: Opt = opt(
 pub const DOMINANT_EYE: Opt = opt(
     "dominant_eye",
     "Dominant eye",
-    "The eye you aim with. Frame-warp (AFW) renders it for real every frame and warps the other eye from it.",
+    "Your dominant eye, for games and methods that use it.",
     choice(&[("right", "Right"), ("left", "Left")], "right"),
 )
 .on(Shown::Monaka);
