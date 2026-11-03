@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "monaka_body"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "monaka_channel",
  "monaka_contract",
@@ -16,7 +16,7 @@ dependencies = [
 
 [[package]]
 name = "monaka_channel"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "monaka_contract",
  "monaka_core",
@@ -25,18 +25,18 @@ dependencies = [
 
 [[package]]
 name = "monaka_contract"
-version = "0.3.0"
+version = "0.3.1"
 
 [[package]]
 name = "monaka_core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "monaka_contract",
 ]
 
 [[package]]
 name = "monaka_ffx"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "monaka_channel",
  "monaka_hook",
@@ -45,7 +45,7 @@ dependencies = [
 
 [[package]]
 name = "monaka_framegen"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "monaka_channel",
  "monaka_contract",
@@ -59,7 +59,7 @@ dependencies = [
 
 [[package]]
 name = "monaka_fsr11"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "monaka_channel",
  "monaka_core",
@@ -71,7 +71,7 @@ dependencies = [
 
 [[package]]
 name = "monaka_gl"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "monaka_channel",
  "monaka_contract",
@@ -81,7 +81,7 @@ dependencies = [
 
 [[package]]
 name = "monaka_hook"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "monaka_core",
  "windows",
@@ -89,7 +89,7 @@ dependencies = [
 
 [[package]]
 name = "monaka_pad"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "monaka_channel",
  "monaka_contract",
@@ -101,7 +101,7 @@ dependencies = [
 
 [[package]]
 name = "monaka_producer"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "monaka_channel",
  "monaka_contract",
@@ -111,7 +111,7 @@ dependencies = [
 
 [[package]]
 name = "monaka_stereo"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "monaka_channel",
  "monaka_contract",
@@ -129,7 +129,7 @@ dependencies = [
 
 [[package]]
 name = "monaka_streamline"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "monaka_channel",
  "monaka_core",
@@ -140,7 +140,7 @@ dependencies = [
 
 [[package]]
 name = "monaka_vulkan"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "monaka_channel",
  "monaka_contract",
@@ -152,7 +152,7 @@ dependencies = [
 
 [[package]]
 name = "monaka_warp"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "monaka_channel",
  "monaka_core",

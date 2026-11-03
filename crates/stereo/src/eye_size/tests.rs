@@ -35,8 +35,31 @@ impl Resizes for Toy {
 }
 
 fn wanted(eye: (u32, u32)) {
-    *GATE.locked() = Some(Gate { eye, asked: false, since: Instant::now(), presents: 0 });
+    *GATE.locked() = Some(Gate { eye, asked: false, since: Instant::now(), presents: 0, video: false });
     OPEN.store(false, Release);
+}
+
+/// A video playing keeps the switch waiting past its patience (run from the one test: the gate is
+/// the process's).
+fn a_video_playing_keeps_the_switch_waiting_past_its_patience() {
+    videos_shown_while_waiting();
+    wanted((100, 100));
+    assert_eq!(pending(), None, "not asked yet");
+    ANSWER.store(1, Relaxed);
+    assert!(!ready::<Toy>((50, 50)), "asked");
+    assert_eq!(pending(), Some((100, 100)), "the size a video goes out at meanwhile");
+    // Long past the patience, but a video plays: still waiting.
+    if let Some(gate) = GATE.locked().as_mut() {
+        gate.since = Instant::now() - PATIENCE * 2;
+        gate.presents = PATIENT_PRESENTS * 2;
+    }
+    monaka_producer::situation::report(Situation::Video, true, 60_000);
+    assert!(!ready::<Toy>((50, 50)), "a video holds the switch");
+    // The video over: the patience starts from there.
+    monaka_producer::situation::report(Situation::Video, false, 60_000);
+    assert!(!ready::<Toy>((50, 50)), "patience again after the video");
+    assert!(ready::<Toy>((100, 100)), "at the size once the game applies it");
+    assert_eq!(pending(), None);
 }
 
 #[test]
@@ -61,4 +84,6 @@ fn frames_wait_for_the_eye_size_once_the_game_is_asked() {
     assert!(ready::<Toy>((50, 50)));
     assert!(ready::<Toy>((50, 50)));
     assert_eq!(ASKED.load(Relaxed), 3);
+
+    a_video_playing_keeps_the_switch_waiting_past_its_patience();
 }

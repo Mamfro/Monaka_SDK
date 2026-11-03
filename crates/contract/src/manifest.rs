@@ -1025,8 +1025,9 @@ pub const ROOM_SCALE: Opt =
 
 /// How the right stick turns the player where a producer turns it itself
 /// (`monaka_core::pad::StickTurn::from_options`). A game that offers it may narrow when it shows.
+/// The viewer gets it too: a snap is no smooth turn to darken the view for ([`TUNNEL_VISION`]).
 pub const TURN: Opt =
-    opt("turn", "Turning", "How the right stick turns you.", choice(&[("smooth", "Smooth"), ("snap", "Snap (30 degrees)")], "smooth")).on(Shown::Controls);
+    opt("turn", "Turning", "How the right stick turns you.", choice(&[("smooth", "Smooth"), ("snap", "Snap (45 degrees)")], "smooth")).on(Shown::Controls).to_viewer();
 
 /// The VR controllers as the game's gamepad (`monaka_pad`).
 pub const CONTROLLER_PAD: Opt =
@@ -1107,6 +1108,13 @@ pub const FROSTED_PANELS: Opt = opt("frosted_panels", "Frosted panels", "", Kind
     .launcher()
     .to_viewer();
 
+/// Tunnel vision (in the viewer): the view's edges darken while the sticks move or smoothly turn
+/// the player, against motion sickness.
+pub const TUNNEL_VISION: Opt = opt("tunnel_vision", "Tunnel vision", "Darkens the edges of your view while you move.", Kind::Switch { default: false })
+    .on(Shown::Monaka)
+    .launcher()
+    .to_viewer();
+
 /// Disabled view bobbing: Monaka's own setting (saved once, for every game), read by the producer of
 /// each game that can (the game lists it among its options, unchanged: [`Manifest::check`]).
 /// More detail in the producer's log, for a bug report. Not an options-file line: the launcher
@@ -1176,7 +1184,7 @@ pub const PANEL_NEAREST: &str = "panel_nearest";
 /// The options the viewer acts on the moment they change (by id): changed in the headset's home,
 /// they apply at once; any other applies with the next launch. Their help is left out: a game's own
 /// words for one (its menus by reach) are not the viewer's to know.
-pub const LIVE: &[Opt] = &[CONTROLLER_SMOOTHING, menu_reach(""), MENU_REACH_DEPTH, CONTROLLER_PROXY, FROSTED_PANELS];
+pub const LIVE: &[Opt] = &[CONTROLLER_SMOOTHING, menu_reach(""), MENU_REACH_DEPTH, CONTROLLER_PROXY, FROSTED_PANELS, TUNNEL_VISION];
 
 
 pub const DISABLE_VIEW_BOBBING: Opt = opt(
@@ -1213,7 +1221,7 @@ pub const MONAKA: Manifest = Manifest {
     launch: Launch::Manual,
     refused_arguments: &[],
     before: "",
-    options: &[CONTROLLER_SMOOTHING, FROSTED_PANELS, DISABLE_VIEW_BOBBING, DOMINANT_EYE, DIAGNOSTIC_LOGGING, DEV_MODE, DEBUG_MENU],
+    options: &[CONTROLLER_SMOOTHING, FROSTED_PANELS, TUNNEL_VISION, DISABLE_VIEW_BOBBING, DOMINANT_EYE, DIAGNOSTIC_LOGGING, DEV_MODE, DEBUG_MENU],
     licences: &[],
     left_hand_aims: false,
     weapon_ring: false,

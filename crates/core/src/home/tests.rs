@@ -15,7 +15,7 @@ fn games_read_back() {
 
 #[test]
 fn a_status_reads_back_on_one_line_each() {
-    let status = Status { can_play: false, why: "Start the game first\nand load in.".into(), can_start_game: true, line: "Waiting for the game...".into() };
+    let status = Status { can_play: false, why: "Start the game first\nand load in.".into(), line: "Waiting for the game...".into() };
     let read = parse_status(&status_text(&status));
     assert_eq!(read, Status { why: "Start the game first and load in.".into(), ..status });
     assert_eq!(parse_status(""), Status::default());

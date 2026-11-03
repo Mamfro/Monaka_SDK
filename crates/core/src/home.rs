@@ -49,8 +49,6 @@ pub const LINK_FILE: &str = "home-link.txt";
 pub const SELECT_LINE: &str = "Monaka select:";
 pub const PLAY_LINE: &str = "Monaka play";
 pub const STOP_LINE: &str = "Monaka stop";
-/// What the headset's home prints to have the window start the game shown through Steam.
-pub const START_GAME_LINE: &str = "Monaka start game";
 /// What the viewer prints when the player closes the home: back to the game, which the run brings
 /// to the front if something else took it.
 pub const HOME_CLOSED_LINE: &str = "Monaka home closed";
@@ -103,21 +101,19 @@ pub fn parse_games(text: &str) -> Vec<Listed> {
         .collect()
 }
 
-/// Play as the window has it: whether it can be pressed, why not (or what it will do), whether the
-/// game can be started through Steam first, and the latest word on a run (starting, waiting for
-/// the game).
+/// Play as the window has it: whether it can be pressed, why not (or what it will do), and the
+/// latest word on a run (starting, waiting for the game).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Status {
     pub can_play: bool,
     pub why: String,
-    pub can_start_game: bool,
     pub line: String,
 }
 
 /// [`STATUS_FILE`]'s text: one `key=value` per line.
 pub fn status_text(status: &Status) -> String {
     let clean = |text: &str| text.replace(['\n', '\r'], " ");
-    format!("play={}\nwhy={}\nstart_game={}\nline={}", u8::from(status.can_play), clean(&status.why), u8::from(status.can_start_game), clean(&status.line))
+    format!("play={}\nwhy={}\nline={}", u8::from(status.can_play), clean(&status.why), clean(&status.line))
 }
 
 /// The status [`status_text`] wrote.
@@ -127,7 +123,6 @@ pub fn parse_status(text: &str) -> Status {
         match key {
             "play" => status.can_play = value == "1",
             "why" => status.why = value.to_owned(),
-            "start_game" => status.can_start_game = value == "1",
             "line" => status.line = value.to_owned(),
             _ => {}
         }

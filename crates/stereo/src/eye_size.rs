@@ -10,6 +10,7 @@ use monaka_contract::manifest::{OWN_EYE_SIZE, Opt, RENDER_SIZE};
 use monaka_core::sync::Locked;
 use monaka_producer::game::{Component, Game, Lack, On, Run, Start};
 use monaka_producer::log;
+use monaka_producer::situation::Situation;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering::*};
 use std::time::{Duration, Instant};
@@ -59,7 +60,7 @@ fn on<G: Game>(run: &Run<'_, G>) -> On {
 /// install does more first calls it at its end.
 pub fn want<G: Game>(start: &mut Start<'_, G>) -> Result<(), Lack> {
     if let Some(eye) = start.options.size("eye_size") {
-        *GATE.locked() = Some(Gate { eye, asked: false, since: Instant::now(), presents: 0 });
+        *GATE.locked() = Some(Gate { eye, asked: false, since: Instant::now(), presents: 0, video: false });
         OPEN.store(false, Release);
     }
     Ok(())
@@ -71,21 +72,41 @@ fn give_back<G: Resizes>() {
     G::put_back();
 }
 
-/// The switch in progress: the size asked for, whether the game was asked, and since when and how
-/// many presents it has not presented at it.
+/// The switch in progress: the size asked for, whether the game was asked, since when and how many
+/// presents it has not presented at it, and whether a video held it at the last present.
 struct Gate {
     eye: (u32, u32),
     asked: bool,
     since: Instant,
     presents: u64,
+    video: bool,
 }
 
 static GATE: Mutex<Option<Gate>> = Mutex::new(None);
 /// Frames go out: no switch, the game presents at the size, or it was refused.
 static OPEN: AtomicBool = AtomicBool::new(true);
+/// The present path publishes a video while the switch waits, scaled to the size asked for
+/// ([`videos_shown_while_waiting`]): the switch may then wait for the video to end.
+static VIDEOS_SHOWN: AtomicBool = AtomicBool::new(false);
+
+/// The run's present path shows a video while the switch waits, flat at the size asked for
+/// ([`pending`]; the OpenGL same-frame loop): a switch waits for a video to end rather than
+/// count its frames against the patience.
+pub(crate) fn videos_shown_while_waiting() {
+    VIDEOS_SHOWN.store(true, Release);
+}
+
+/// The eye size the game was asked for and has not presented at yet; none once frames go out.
+pub fn pending() -> Option<(u32, u32)> {
+    if OPEN.load(Acquire) {
+        return None;
+    }
+    GATE.locked().as_ref().filter(|gate| gate.asked).map(|gate| gate.eye)
+}
 
 /// A switch counts as refused once the game has presented at another size this long and this
-/// often since it was asked: a paused game presents rarely and keeps the switch pending.
+/// often since it was asked: a paused game presents rarely and keeps the switch pending, and a
+/// video playing keeps it pending until the video ends.
 const PATIENCE: Duration = Duration::from_secs(10);
 const PATIENT_PRESENTS: u64 = 90;
 
@@ -115,7 +136,18 @@ pub fn ready<G: Resizes>(presented: (u32, u32)) -> bool {
                 true
             }
         }
+    } else if VIDEOS_SHOWN.load(Acquire) && monaka_producer::situation::active(Situation::Video) {
+        // A game playing a video (its intros, when joined as it starts) applies no size until it
+        // ends: the patience starts over, else the channel is made at the old size and every frame
+        // after the switch is one it cannot carry. The video still shows: its frames go out flat
+        // at the size asked for ([`pending`]).
+        if !switch.video {
+            log!("eye size: a video plays; waiting for it to end for {width}x{height}");
+        }
+        (switch.video, switch.since, switch.presents) = (true, Instant::now(), 0);
+        false
     } else {
+        switch.video = false;
         switch.presents += 1;
         let refused = switch.presents >= PATIENT_PRESENTS && switch.since.elapsed() >= PATIENCE;
         if refused {

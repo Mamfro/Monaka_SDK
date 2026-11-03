@@ -416,10 +416,11 @@ macro_rules! producer {
         #[unsafe(no_mangle)]
         pub extern "system" fn MonakaStart(_: *mut ::core::ffi::c_void) -> u32 {
             let manifests = <$game as $crate::game::Game>::MANIFESTS;
-            LIFECYCLE.start(manifests[0].log, |session| {
+            let meant = $crate::meant_here(manifests);
+            LIFECYCLE.start(meant.log, |session| {
                 $crate::log_header(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
                 $crate::require_host(&$crate::manifest::host_text(manifests))?;
-                $crate::allow_other_builds(session.manifest_options(&manifests[0]).switch("other_builds", false));
+                $crate::allow_other_builds(session.manifest_options(meant).switch("other_builds", false));
                 $crate::game::start::<$game>(session)
             })
         }
@@ -490,6 +491,18 @@ pub fn discovered_build(name: &str) -> Result<Module, Rejection> {
 
 /// Whether [`require_build`] lets an unknown build through (`other_builds=1`).
 static OTHER_BUILDS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// The manifest the launcher meant: the one whose options file `has` (beside the DLL; several games
+/// served by one producer each have their own), else the first.
+pub fn meant(manifests: &'static [manifest::Manifest], has: impl Fn(&str) -> bool) -> &'static manifest::Manifest {
+    manifests.iter().find(|m| has(m.options_file)).unwrap_or(&manifests[0])
+}
+
+/// [`meant`] before the session is open (its log is named by the manifest), from the DLL's folder.
+pub fn meant_here(manifests: &'static [manifest::Manifest]) -> &'static manifest::Manifest {
+    let dir = this_module_dir();
+    meant(manifests, |file| dir.as_ref().is_some_and(|dir| dir.join(file).is_file()))
+}
 
 /// Sets whether [`require_build`] lets an unknown build through; the producer's start does it from
 /// the options file before the game's own start.

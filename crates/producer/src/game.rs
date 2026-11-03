@@ -857,10 +857,9 @@ struct Running {
 
 static RUN: Mutex<Option<Running>> = Mutex::new(None);
 
-/// The manifest the launcher meant: the one whose options file it wrote beside the DLL (several
-/// games served by one producer each have their own), else the first.
+/// The manifest the launcher meant ([`crate::meant`]).
 fn meant<G: Game>(session: &Session) -> &'static Manifest {
-    G::MANIFESTS.iter().find(|m| session.has(m.options_file)).unwrap_or(&G::MANIFESTS[0])
+    crate::meant(G::MANIFESTS, |file| session.has(file))
 }
 
 /// Runs one step of a component, logged with its name and, when slow, how long it took.

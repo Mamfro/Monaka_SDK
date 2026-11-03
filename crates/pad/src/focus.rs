@@ -3,7 +3,8 @@
 //! in the headset, the monitor's window often behind another. The game window's procedure is
 //! subclassed: the messages that tell it it was deactivated (`WM_ACTIVATEAPP` off, `WM_ACTIVATE`
 //! inactive, `WM_KILLFOCUS`) stop there, everything else goes on to the game's own; it is put back
-//! at the give-back.
+//! at the give-back. A game already in the background when the run starts is told it is active
+//! again (`WM_ACTIVATEAPP`, `WM_ACTIVATE`), so one that paused itself there plays on.
 
 use monaka_contract::manifest::{Kind, Opt, opt};
 use monaka_producer::game::{Component, Game, Switch};
@@ -12,8 +13,8 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows::Win32::System::Threading::GetCurrentProcessId;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CallWindowProcW, EnumWindows, GWLP_WNDPROC, GetClientRect, GetWindowLongPtrW, GetWindowThreadProcessId, IsWindowVisible, SetWindowLongPtrW, WA_INACTIVE, WM_ACTIVATE,
-    WM_ACTIVATEAPP, WM_KILLFOCUS, WNDPROC,
+    CallWindowProcW, EnumWindows, GWLP_WNDPROC, GetClientRect, GetWindowLongPtrW, GetWindowThreadProcessId, IsWindowVisible, PostMessageW, SetWindowLongPtrW, WA_ACTIVE,
+    WA_INACTIVE, WM_ACTIVATE, WM_ACTIVATEAPP, WM_KILLFOCUS, WNDPROC,
 };
 use windows::core::BOOL;
 
@@ -99,7 +100,10 @@ fn install() {
     }
     ORIGINAL.store(previous as usize, Ordering::Release);
     WINDOW.store(window.0 as usize, Ordering::Release);
-    log!("focus: the game window {:#x} no longer hears it loses focus", window.0 as usize);
+    // A game already in the background hears it is active again (its own pause on losing focus lifts).
+    // SAFETY: posts activation messages to a window of this process.
+    let told = unsafe { PostMessageW(Some(window), WM_ACTIVATEAPP, WPARAM(1), LPARAM(0)).is_ok() && PostMessageW(Some(window), WM_ACTIVATE, WPARAM(WA_ACTIVE as usize), LPARAM(0)).is_ok() };
+    log!("focus: the game window {:#x} no longer hears it loses focus{}", window.0 as usize, if told { ", and was told it is active" } else { "" });
 }
 
 /// Puts the window's own procedure back (if ours is still the one in front).

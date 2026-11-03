@@ -8,11 +8,14 @@
 //!
 //! The channel is made at the first present whose back buffer the game says may be published
 //! ([`PairLoop::ready`](super::PairLoop::ready), its whole size); a resized back buffer after that
-//! stops the publishing for the run.
+//! stops the publishing for the run. Until a pair has gone out with its pose, a present without
+//! one goes out flat: the viewer links in, and sends the head the eyes are drawn from, only once
+//! the channel is there. A frame the game says goes to the flat screen ([`super::PairLoop::flat`]:
+//! another camera has the view) goes out flat too, its left eye to both, without a pose.
 
 use super::{PAIRS, Settings};
 use crate::pairs::d3d12::{PairPublisher12, Step};
-use crate::publish::record_first;
+use crate::publish::{FLAT, record_first};
 use monaka_channel::{ChannelName, d3d, d3d12, fence11::FenceProducer11};
 use monaka_contract::protocol::HeadPose;
 use monaka_core::sync::Locked;
@@ -31,6 +34,8 @@ use windows::core::Interface;
 static OUTPUT: Mutex<Option<Sides>> = Mutex::new(None);
 /// Presents with no pose to publish them with.
 static UNPOSED: AtomicU64 = AtomicU64::new(0);
+/// Frames go to the flat screen now (logged as it changes).
+static FLAT_NOW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// The run's channel, and the publisher made for the swapchain the game presents on.
 struct Sides {
@@ -38,6 +43,8 @@ struct Sides {
     publisher: Option<Publisher>,
     /// Stopped for the run (logged once).
     broken: bool,
+    /// A pair has gone out with its pose: from then on a present without one is left out.
+    posed: bool,
 }
 
 /// The first swapchain's publisher (a present on another swapchain is not the game's frame).
@@ -50,7 +57,7 @@ pub(crate) fn install(channel: ChannelName) {
     if let Err(why) = crate::swapchain_queue::learn() {
         log!("side-by-side pairs: the swapchain's queue cannot be read ({why}); the game's queue is asked instead");
     }
-    *OUTPUT.locked() = Some(Sides { channel, publisher: None, broken: false });
+    *OUTPUT.locked() = Some(Sides { channel, publisher: None, broken: false, posed: false });
 }
 
 /// Lets go of the channel once the GPU is done with the eye images (leaked if it never is).
@@ -71,23 +78,33 @@ pub(crate) fn close() {
 
 /// The frame about to present on `swap` (the game's present entry, before the game presents it):
 /// both halves of its back buffer published as one pair drawn from `pose` (none: the oldest frame
-/// built and not shown, [`super::Pairs::built`]); not published without a pose, or until the game
-/// says its back buffer's size may be. Whether the pair went out.
+/// built and not shown, [`super::Pairs::built`]); without a pose, flat until a pair has gone out
+/// with one and left out after; not until the game says its back buffer's size may be. Whether the
+/// pair went out.
 ///
 /// # Safety
 /// `swap` is the live DXGI swapchain whose present is running on this thread.
 pub unsafe fn present(swap: *mut c_void, pose: Option<HeadPose>) -> bool {
     PAIRS.present();
     let Some(settings) = PAIRS.settings() else { return false };
-    let Some(pose) = pose.or_else(|| PAIRS.shown().0) else {
+    let pose = pose.or_else(|| PAIRS.shown().0);
+    if pose.is_none() {
         UNPOSED.fetch_add(1, Relaxed);
-        return false;
-    };
+    }
     // SAFETY: the caller's guarantee.
     let Some(chain) = (unsafe { IDXGISwapChain::from_raw_borrowed(&swap) }) else { return false };
     let mut guard = OUTPUT.locked();
     let Some(sides) = guard.as_mut().filter(|s| !s.broken) else { return false };
-    let published = match publish(sides, &settings, chain, swap as usize, pose) {
+    let flat = PAIRS.flat_now(settings.flat);
+    if FLAT_NOW.swap(flat.is_some(), Relaxed) != flat.is_some() {
+        match flat {
+            Some(reason) => log!("side-by-side pairs: {}: the left eye to the flat screen", reason.label()),
+            None => log!("side-by-side pairs: eyes again"),
+        }
+    }
+    let poses = if flat.is_some() { Some(FLAT) } else { poses_for(pose, sides.posed) };
+    let Some(poses) = poses else { return false };
+    let published = match publish(sides, &settings, chain, swap as usize, poses, flat.is_some()) {
         Ok(published) => published,
         Err(why) => {
             log!("side-by-side pairs stopped for this run: {why}");
@@ -96,6 +113,7 @@ pub unsafe fn present(swap: *mut c_void, pose: Option<HeadPose>) -> bool {
         }
     };
     if let Some(published) = published {
+        sides.posed |= published && pose.is_some() && flat.is_none();
         PAIRS.count(published);
         if published {
             PAIRS.pair_done("side-by-side", 0);
@@ -106,7 +124,18 @@ pub unsafe fn present(swap: *mut c_void, pose: Option<HeadPose>) -> bool {
 
 /// The pair of `chain`'s back buffer, made ready on its first present that may be published:
 /// whether it went out (none: not tried, the channel not made yet or no copy free this instant).
-fn publish(sides: &mut Sides, settings: &Settings, chain: &IDXGISwapChain, swap: usize, pose: HeadPose) -> Result<Option<bool>, String> {
+/// The poses a present's pair goes out with: its pose for both eyes; without one, flat ([`FLAT`])
+/// until a pair has gone out `posed`, none after.
+fn poses_for(pose: Option<HeadPose>, posed: bool) -> Option<[HeadPose; 2]> {
+    match pose {
+        Some(pose) => Some([pose, pose]),
+        None => (!posed).then_some(FLAT),
+    }
+}
+
+/// The pair of `chain`'s back buffer with `poses`, each eye its own half (`mono`: the left half to
+/// both).
+fn publish(sides: &mut Sides, settings: &Settings, chain: &IDXGISwapChain, swap: usize, poses: [HeadPose; 2], mono: bool) -> Result<Option<bool>, String> {
     if sides.publisher.is_none() {
         let Some(made) = made_for(sides, settings, chain, swap)? else { return Ok(None) };
         sides.publisher = Some(made);
@@ -116,12 +145,12 @@ fn publish(sides: &mut Sides, settings: &Settings, chain: &IDXGISwapChain, swap:
             let chain = chain.cast::<IDXGISwapChain3>().map_err(|e| e.to_string())?;
             // SAFETY: COM calls on the swapchain presenting, on its thread.
             let buffer = unsafe { chain.GetBuffer::<ID3D12Resource>(chain.GetCurrentBackBufferIndex()) }.map_err(|e| e.to_string())?;
-            eyes.publish(&buffer, pose, settings)
+            eyes.publish(&buffer, poses, settings, mono)
         }
         Some(Publisher::D3D11 { swap: ours, eyes }) if *ours == swap => {
             // SAFETY: the flip-model swapchain's current back buffer is buffer 0.
             let buffer = unsafe { chain.GetBuffer::<ID3D11Texture2D>(0) }.map_err(|e| e.to_string())?;
-            eyes.publish(&buffer, pose, settings)
+            eyes.publish(&buffer, poses, settings, mono)
         }
         _ => Ok(None),
     }
@@ -192,8 +221,9 @@ impl Eyes12 {
         Ok(Self { queue, recorder, images, publisher, size, format: desc.Format.0 })
     }
 
-    /// Both halves of `buffer` (in PRESENT) copied out and published from `pose`.
-    fn publish(&mut self, buffer: &ID3D12Resource, pose: HeadPose, settings: &Settings) -> Result<Option<bool>, String> {
+    /// Both halves of `buffer` (in PRESENT) copied out (`mono`: the left half to both) and published
+    /// with `poses`.
+    fn publish(&mut self, buffer: &ID3D12Resource, poses: [HeadPose; 2], settings: &Settings, mono: bool) -> Result<Option<bool>, String> {
         // SAFETY: reads a descriptor.
         let desc = unsafe { buffer.GetDesc() };
         if (desc.Width as u32, desc.Height, desc.Format.0) != (self.size.0 * 2, self.size.1, self.format) {
@@ -202,7 +232,7 @@ impl Eyes12 {
         let Some(list) = self.recorder.begin().map_err(|e| e.to_string())? else { return Ok(None) };
         d3d12::barrier(&list, buffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_SOURCE);
         for (eye, image) in self.images.iter().enumerate() {
-            let [left, top, right, bottom] = half(eye as u32, self.size);
+            let [left, top, right, bottom] = half(if mono { 0 } else { eye as u32 }, self.size);
             let region = D3D12_BOX { left, top, front: 0, right, bottom, back: 1 };
             d3d12::barrier(&list, image, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
             // SAFETY: an in-bounds half of the back buffer into a same-format image of that size.
@@ -212,7 +242,7 @@ impl Eyes12 {
         d3d12::barrier(&list, buffer, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
         self.recorder.submit(&self.queue).map_err(|e| e.to_string())?;
         let eyes = [(&self.images[0], D3D12_RESOURCE_STATE_COMMON), (&self.images[1], D3D12_RESOURCE_STATE_COMMON)];
-        match self.publisher.publish(eyes, [pose, pose], PAIRS.head(), |p| settings.report(p)) {
+        match self.publisher.publish(eyes, poses, PAIRS.head(), |p| settings.report(p)) {
             Step::Waiting => Ok(None),
             Step::Failed if self.publisher.broken() => Err("the D3D12 fence channel broke".into()),
             step => Ok(Some(step == Step::Published)),
@@ -241,14 +271,14 @@ impl Eyes11 {
         Ok(Self { context, producer, size, format: desc.Format.0, published: 0 })
     }
 
-    fn publish(&mut self, buffer: &ID3D11Texture2D, pose: HeadPose, settings: &Settings) -> Result<Option<bool>, String> {
+    fn publish(&mut self, buffer: &ID3D11Texture2D, poses: [HeadPose; 2], settings: &Settings, mono: bool) -> Result<Option<bool>, String> {
         let desc = d3d::texture_desc(buffer);
         if (desc.Width, desc.Height, desc.Format.0) != (self.size.0 * 2, self.size.1, self.format) {
             return Err(format!("the back buffer changed to {}x{} format {}", desc.Width, desc.Height, desc.Format.0));
         }
-        record_first(PAIRS.head(), self.producer.next_sequence(), [pose, pose], |p| settings.report(p));
-        let region = |eye| {
-            let [left, top, right, bottom] = half(eye, self.size);
+        record_first(PAIRS.head(), self.producer.next_sequence(), poses, |p| settings.report(p));
+        let region = |eye: u32| {
+            let [left, top, right, bottom] = half(if mono { 0 } else { eye }, self.size);
             D3D11_BOX { left, top, front: 0, right, bottom, back: 1 }
         };
         let published = self.producer.publish(&self.context, buffer, [region(0), region(1)], monaka_channel::tick()).map_err(|e| e.to_string())?;

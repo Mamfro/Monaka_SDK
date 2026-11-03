@@ -7,7 +7,8 @@
 //! The script is one step per line (`#` starts a comment): the time in milliseconds from the
 //! start, a command and its arguments. Everything holds until changed.
 //!
-//! - `head <yaw> <pitch>`: the head turned (degrees; yaw left, pitch up), at the tracking origin.
+//! - `head <yaw> <pitch> [<x> <y> <z>]`: the head turned (degrees; yaw left, pitch up), at the
+//!   tracking origin or moved from it (metres; x right, y up, z back).
 //! - `hand <left|right> <x> <y> <z> <yaw> <pitch>`: that controller's aim pose (metres from the
 //!   head, x right, y up, z back; degrees as for the head); its grip sits 8 cm behind and 3 cm
 //!   below, as on a real controller. `hand <left|right> off` stops locating it.
@@ -84,7 +85,7 @@ const RIGHT_FOV: [f32; 4] = [-0.75, 0.90, 0.85, -0.90];
 
 #[derive(Clone, Debug)]
 enum Step {
-    Head { yaw: f32, pitch: f32 },
+    Head { yaw: f32, pitch: f32, position: [f32; 3] },
     Hand { side: usize, pose: Option<([f32; 3], f32, f32)> },
     Pad { buttons: u16, triggers: [u8; 2] },
     Stick([f32; 4]),
@@ -249,7 +250,7 @@ fn parse_script(text: &str) -> Result<Vec<(u64, Step)>, String> {
         let at: u64 = words[0].parse().map_err(|_| bad("no time"))?;
         let number = |i: usize| -> Result<f32, String> { words.get(i).ok_or_else(|| bad("too few numbers"))?.parse::<f32>().map_err(|_| bad("not a number")) };
         let step = match words.get(1).copied() {
-            Some("head") => Step::Head { yaw: number(2)?, pitch: number(3)? },
+            Some("head") => Step::Head { yaw: number(2)?, pitch: number(3)?, position: if words.len() > 4 { [number(4)?, number(5)?, number(6)?] } else { [0.0; 3] } },
             Some("hand") => {
                 let side = match words.get(2).copied() {
                     Some("left") => 0,
@@ -514,7 +515,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         while next < script.len() && script[next].0 <= now {
             println!("{now:>6} ms: {:?}", script[next].1);
             match &script[next].1 {
-                Step::Head { yaw, pitch } => head.orientation = turn(*yaw, *pitch),
+                Step::Head { yaw, pitch, position } => (head.orientation, head.position) = (turn(*yaw, *pitch), *position),
                 Step::Hand { side, pose } => hand_poses[*side] = *pose,
                 Step::Fingers { side, bend } => finger_bends[*side] = *bend,
                 Step::Pad { buttons, triggers } => {

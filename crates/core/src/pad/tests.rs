@@ -22,7 +22,7 @@ fn a_snap_turns_once_per_push_and_a_straight_smooth_turn_is_linear() {
     let snap = StickTurn::SNAP;
     let pushes = [0.0, 0.8, 0.9, 0.5, 0.8, 0.2, -0.75, -0.8, 0.0, 0.71];
     let turned: Vec<f32> = pushes.iter().map(|&x| snap.turn(x, 0.011, &mut latch)).collect();
-    assert_eq!(turned, [0.0, 30.0, 0.0, 0.0, 0.0, 0.0, -30.0, 0.0, 0.0, 30.0], "back within 0.3 before the next");
+    assert_eq!(turned, [0.0, 45.0, 0.0, 0.0, 0.0, 0.0, -45.0, 0.0, 0.0, 45.0], "back within 0.3 before the next");
     assert!(snap.pushed(0.75) && !snap.pushed(0.6) && snap.share(1.0) == 0.0);
 }
 

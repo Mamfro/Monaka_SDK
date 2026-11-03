@@ -44,8 +44,9 @@ impl StickTurn {
         Self::Smooth { speed, dead_zone: TURN_DEADZONE, ease: 1.5 }
     }
 
-    /// A 30 degree snap past seven tenths of the stick's travel, again once it is back within three.
-    pub const SNAP: Self = Self::Snap { degrees: 30.0, at: 0.7, release: 0.3 };
+    /// A 45 degree snap (the usual default in VR games) past seven tenths of the stick's travel,
+    /// again once it is back within three.
+    pub const SNAP: Self = Self::Snap { degrees: 45.0, at: 0.7, release: 0.3 };
 
     /// The turn the `turn` option asks for ([`monaka_contract::manifest::TURN`]; the game's default when
     /// unset): `smooth` or `snap`.
