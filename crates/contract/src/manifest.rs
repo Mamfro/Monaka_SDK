@@ -618,9 +618,17 @@ impl Values {
         self.switch(&MONAKA, DEV_MODE.id)
     }
 
-    /// Whether `opt` means anything with these values (its [`Opt::when`] holds).
+    /// Whether `opt` means anything with these values: its [`Opt::when`] holds, and the option
+    /// that names means anything itself (a setting under one that is hidden is hidden too).
     pub fn applies(&self, game: &Manifest, opt: &Opt) -> bool {
-        opt.when.is_none_or(|(id, value)| matches(&self.text(game, id), value))
+        self.applies_within(game, opt, 4)
+    }
+
+    /// [`Values::applies`], following conditions at most `depth` deep (a loop of them ends).
+    fn applies_within(&self, game: &Manifest, opt: &Opt, depth: u8) -> bool {
+        opt.when.is_none_or(|(id, value)| {
+            matches(&self.text(game, id), value) && (depth == 0 || game.option(id).is_none_or(|under| self.applies_within(game, under, depth - 1)))
+        })
     }
 
     /// The choices of `opt` the window offers with these values: its window's, less the aims the
@@ -1115,6 +1123,42 @@ pub const TUNNEL_VISION: Opt = opt("tunnel_vision", "Tunnel vision", "Darkens th
     .launcher()
     .to_viewer();
 
+/// What surrounds the player in the headset while no game shows: `home`, the room captured in the
+/// `scenes` folder beside the viewer; `drift`, a made one (colours drifting round a dome); `none`,
+/// the plain dark, nothing drawn.
+pub const BACKGROUND: Opt = opt(
+    "background",
+    "Background",
+    "What surrounds you while no game is running.",
+    choice(&[("home", "Home"), ("drift", "Drift"), ("none", "None")], "home"),
+)
+.on(Shown::Monaka)
+.launcher();
+
+/// The background shows round a game's flat screen too (its menus, loading screens and
+/// cutscenes), not only while no game runs. Off by default: the GPU draws it beside the game.
+pub const BACKGROUND_FLAT: Opt = opt("background_flat", "Background During Cutscenes", "Also around a game's menus and loading screens.", Kind::Switch { default: false })
+    .only_when("background", "!none")
+    .on(Shown::Monaka)
+    .launcher();
+
+/// The hours the home scene's light may be at, and the clock (the default).
+const SCENE_TIMES: &[(&str, &str)] = &[("clock", "Clock"), ("0", "0:00"), ("1", "1:00"), ("2", "2:00"), ("3", "3:00"), ("4", "4:00"), ("5", "5:00"), ("6", "6:00"), ("7", "7:00"), ("8", "8:00"), ("9", "9:00"), ("10", "10:00"), ("11", "11:00"), ("12", "12:00"), ("13", "13:00"), ("14", "14:00"), ("15", "15:00"), ("16", "16:00"), ("17", "17:00"), ("18", "18:00"), ("19", "19:00"), ("20", "20:00"), ("21", "21:00"), ("22", "22:00"), ("23", "23:00")];
+
+/// The captured room's time of day: `clock`, as this computer's clock says (each hour as it was
+/// captured, faded into the next as it comes); or an hour (0 to 23), where it stays.
+pub const SCENE_TIME: Opt = opt("scene_time", "Home: Time of Day", "Clock: as this computer's clock says.", choice(SCENE_TIMES, "clock"))
+    .only_when("background", "home")
+    .on(Shown::Monaka)
+    .launcher();
+
+/// How loud the home scene's sound is: 100 its recording's own level, each step down an even step
+/// quieter to the ear (40 dB over the range: 35, the default, is about a twentieth), 0 silent.
+pub const SCENE_VOLUME: Opt = opt("scene_volume", "Home: Ambient Volume", "", Kind::Number { min: 0.0, max: 100.0, step: 5.0, default: 35.0 })
+    .only_when("background", "home")
+    .on(Shown::Monaka)
+    .launcher();
+
 /// Disabled view bobbing: Monaka's own setting (saved once, for every game), read by the producer of
 /// each game that can (the game lists it among its options, unchanged: [`Manifest::check`]).
 /// More detail in the producer's log, for a bug report. Not an options-file line: the launcher
@@ -1184,7 +1228,7 @@ pub const PANEL_NEAREST: &str = "panel_nearest";
 /// The options the viewer acts on the moment they change (by id): changed in the headset's home,
 /// they apply at once; any other applies with the next launch. Their help is left out: a game's own
 /// words for one (its menus by reach) are not the viewer's to know.
-pub const LIVE: &[Opt] = &[CONTROLLER_SMOOTHING, menu_reach(""), MENU_REACH_DEPTH, CONTROLLER_PROXY, FROSTED_PANELS, TUNNEL_VISION];
+pub const LIVE: &[Opt] = &[CONTROLLER_SMOOTHING, menu_reach(""), MENU_REACH_DEPTH, CONTROLLER_PROXY, FROSTED_PANELS, TUNNEL_VISION, BACKGROUND, BACKGROUND_FLAT, SCENE_TIME, SCENE_VOLUME];
 
 
 pub const DISABLE_VIEW_BOBBING: Opt = opt(
@@ -1221,12 +1265,21 @@ pub const MONAKA: Manifest = Manifest {
     launch: Launch::Manual,
     refused_arguments: &[],
     before: "",
-    options: &[CONTROLLER_SMOOTHING, FROSTED_PANELS, TUNNEL_VISION, DISABLE_VIEW_BOBBING, DOMINANT_EYE, DIAGNOSTIC_LOGGING, DEV_MODE, DEBUG_MENU],
+    options: &[CONTROLLER_SMOOTHING, FROSTED_PANELS, TUNNEL_VISION, BACKGROUND, BACKGROUND_FLAT, SCENE_TIME, SCENE_VOLUME, DISABLE_VIEW_BOBBING, DOMINANT_EYE, DIAGNOSTIC_LOGGING, DEV_MODE, DEBUG_MENU],
     licences: &[],
     left_hand_aims: false,
     weapon_ring: false,
     controls: &[],
 };
+
+/// Monaka's own settings in tabs, as the window and the headset show them: each tab's name and
+/// its settings' ids, in order. Every one of [`MONAKA`]'s options is on exactly one.
+pub const MONAKA_TABS: &[(&str, &[&str])] = &[
+    ("Home", &[BACKGROUND.id, BACKGROUND_FLAT.id, SCENE_TIME.id, SCENE_VOLUME.id, FROSTED_PANELS.id]),
+    ("View", &[TUNNEL_VISION.id, DISABLE_VIEW_BOBBING.id, DOMINANT_EYE.id]),
+    ("Controllers", &[CONTROLLER_SMOOTHING.id]),
+    ("Advanced", &[DIAGNOSTIC_LOGGING.id, DEV_MODE.id, DEBUG_MENU.id]),
+];
 
 /// Extra `key=value` producer options, appended to the options file (the game's config lists them).
 pub const EXTRA: Opt = line("extra", "Extra producer options", "key=value pairs separated by spaces (see the game's config.rs).", Kind::Text).launcher();

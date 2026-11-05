@@ -209,3 +209,45 @@ fn monaka_settings_read_as_options() {
     let game = Manifest { options: READS, ..TEST };
     assert_eq!(values.producer_lines(&game), ["disable_view_bobbing=0"]);
 }
+
+#[test]
+fn every_monaka_setting_is_on_one_tab() {
+    for opt in MONAKA.options {
+        let on = MONAKA_TABS.iter().filter(|(_, ids)| ids.contains(&opt.id)).count();
+        assert_eq!(on, 1, "{} is on {on} of Monaka's tabs", opt.id);
+    }
+    for (tab, ids) in MONAKA_TABS {
+        assert!(!ids.is_empty(), "{tab} has nothing on it");
+        for id in *ids {
+            assert!(MONAKA.option(id).is_some(), "{tab} names {id}, which is none of Monaka's settings");
+        }
+    }
+}
+
+#[test]
+fn a_setting_under_a_hidden_one_is_hidden_too() {
+    const UNDER: Manifest = Manifest {
+        options: &[
+            opt("outer", "Outer", "", Kind::Switch { default: true }),
+            opt("middle", "Middle", "", Kind::Switch { default: false }).only_when("outer", "1"),
+            opt("inner", "Inner", "", Kind::Text).only_when("middle", "0"),
+        ],
+        ..ANY
+    };
+    let inner = UNDER.option("inner").unwrap();
+    let mut values = Values::default();
+    assert!(values.applies(&UNDER, inner), "the middle off: the inner shows");
+    values.set("outer", "0");
+    assert!(!values.applies(&UNDER, UNDER.option("middle").unwrap()), "the outer off: no middle");
+    assert!(!values.applies(&UNDER, inner), "nor the inner under it");
+}
+
+#[test]
+fn the_home_time_is_the_clock_or_an_hour() {
+    let mut values = Values::default();
+    assert_eq!(values.text(&MONAKA, SCENE_TIME.id), "clock");
+    values.set(SCENE_TIME.id, "14");
+    assert_eq!(values.text(&MONAKA, SCENE_TIME.id), "14");
+    values.set(BACKGROUND.id, "drift");
+    assert!(!values.applies(&MONAKA, &SCENE_TIME), "no captured room: no time of day");
+}
