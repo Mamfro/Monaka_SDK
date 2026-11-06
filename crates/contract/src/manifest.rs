@@ -1035,7 +1035,7 @@ pub const ROOM_SCALE: Opt =
 /// (`monaka_core::pad::StickTurn::from_options`). A game that offers it may narrow when it shows.
 /// The viewer gets it too: a snap is no smooth turn to darken the view for ([`TUNNEL_VISION`]).
 pub const TURN: Opt =
-    opt("turn", "Turning", "How the right stick turns you.", choice(&[("smooth", "Smooth"), ("snap", "Snap (45 degrees)")], "smooth")).on(Shown::Controls).to_viewer();
+    opt("turn", "Turn Style", "How the right stick turns you.", choice(&[("smooth", "Smooth"), ("snap", "Snap (45 degrees)")], "smooth")).on(Shown::Controls).to_viewer();
 
 /// The VR controllers as the game's gamepad (`monaka_pad`).
 pub const CONTROLLER_PAD: Opt =
@@ -1109,6 +1109,30 @@ pub const CONTROLLER_SMOOTHING: Opt = opt(
 .launcher()
 .to_viewer();
 
+/// When the controllers' reticles show: as the game says (for each hand, while it aims with it),
+/// always, or never.
+pub const RETICLES: Opt = opt("reticles", "Reticles", "Game Based: the game decides when each hand shows one.", choice(&[("game", "Game Based"), ("on", "On"), ("off", "Off")], "game"))
+    .on(Shown::Monaka)
+    .launcher();
+
+/// The reticles' shape.
+pub const RETICLE_PATTERN: Opt = opt("reticle_pattern", "Reticle Pattern", "", choice(&[("circles", "Circles"), ("star", "Star"), ("dots", "Dots")], "circles"))
+    .only_when("reticles", "!off")
+    .on(Shown::Monaka)
+    .launcher();
+
+/// How the reticles stand out: white, or the opposite of the picture under them (drawn into the
+/// eye images, where the picture is).
+pub const RETICLE_STYLE: Opt = opt("reticle_style", "Reticle Style", "Inverted: the opposite of what's behind it.", choice(&[("white", "White"), ("inverted", "Inverted")], "white"))
+    .only_when("reticles", "!off")
+    .on(Shown::Monaka)
+    .launcher();
+
+/// Monaka's colours, in the headset and the 2D window alike (`monaka_core::theme`).
+pub const THEME: Opt = opt("theme", "Theme", "", choice(&[("red", "Red"), ("blue", "Blue"), ("green", "Green"), ("mango", "Mango")], "red"))
+    .on(Shown::Monaka)
+    .launcher();
+
 /// The headset home's panels as frosted glass: the game shows through them blurred (the viewer
 /// blurs the eyes behind each panel). Off: solid panels, and no blur pass.
 pub const FROSTED_PANELS: Opt = opt("frosted_panels", "Frosted panels", "", Kind::Switch { default: true })
@@ -1152,8 +1176,8 @@ pub const SCENE_TIME: Opt = opt("scene_time", "Home: Time of Day", "Clock: as th
     .on(Shown::Monaka)
     .launcher();
 
-/// How loud the home scene's sound is: 100 its recording's own level, each step down an even step
-/// quieter to the ear (40 dB over the range: 35, the default, is about a twentieth), 0 silent.
+/// How loud the home scene's sound is: 100 a third of its recording's level, each step down an even
+/// step quieter to the ear (40 dB over the range: 35, the default, is about a sixtieth), 0 silent.
 pub const SCENE_VOLUME: Opt = opt("scene_volume", "Home: Ambient Volume", "", Kind::Number { min: 0.0, max: 100.0, step: 5.0, default: 35.0 })
     .only_when("background", "home")
     .on(Shown::Monaka)
@@ -1228,7 +1252,7 @@ pub const PANEL_NEAREST: &str = "panel_nearest";
 /// The options the viewer acts on the moment they change (by id): changed in the headset's home,
 /// they apply at once; any other applies with the next launch. Their help is left out: a game's own
 /// words for one (its menus by reach) are not the viewer's to know.
-pub const LIVE: &[Opt] = &[CONTROLLER_SMOOTHING, menu_reach(""), MENU_REACH_DEPTH, CONTROLLER_PROXY, FROSTED_PANELS, TUNNEL_VISION, BACKGROUND, BACKGROUND_FLAT, SCENE_TIME, SCENE_VOLUME];
+pub const LIVE: &[Opt] = &[CONTROLLER_SMOOTHING, menu_reach(""), MENU_REACH_DEPTH, CONTROLLER_PROXY, RETICLES, RETICLE_PATTERN, RETICLE_STYLE, THEME, FROSTED_PANELS, TUNNEL_VISION, BACKGROUND, BACKGROUND_FLAT, SCENE_TIME, SCENE_VOLUME];
 
 
 pub const DISABLE_VIEW_BOBBING: Opt = opt(
@@ -1265,7 +1289,7 @@ pub const MONAKA: Manifest = Manifest {
     launch: Launch::Manual,
     refused_arguments: &[],
     before: "",
-    options: &[CONTROLLER_SMOOTHING, FROSTED_PANELS, TUNNEL_VISION, BACKGROUND, BACKGROUND_FLAT, SCENE_TIME, SCENE_VOLUME, DISABLE_VIEW_BOBBING, DOMINANT_EYE, DIAGNOSTIC_LOGGING, DEV_MODE, DEBUG_MENU],
+    options: &[CONTROLLER_SMOOTHING, RETICLES, RETICLE_PATTERN, RETICLE_STYLE, THEME, FROSTED_PANELS, TUNNEL_VISION, BACKGROUND, BACKGROUND_FLAT, SCENE_TIME, SCENE_VOLUME, DISABLE_VIEW_BOBBING, DOMINANT_EYE, DIAGNOSTIC_LOGGING, DEV_MODE, DEBUG_MENU],
     licences: &[],
     left_hand_aims: false,
     weapon_ring: false,
@@ -1275,9 +1299,9 @@ pub const MONAKA: Manifest = Manifest {
 /// Monaka's own settings in tabs, as the window and the headset show them: each tab's name and
 /// its settings' ids, in order. Every one of [`MONAKA`]'s options is on exactly one.
 pub const MONAKA_TABS: &[(&str, &[&str])] = &[
-    ("Home", &[BACKGROUND.id, BACKGROUND_FLAT.id, SCENE_TIME.id, SCENE_VOLUME.id, FROSTED_PANELS.id]),
+    ("Home", &[THEME.id, BACKGROUND.id, BACKGROUND_FLAT.id, SCENE_TIME.id, SCENE_VOLUME.id, FROSTED_PANELS.id]),
     ("View", &[TUNNEL_VISION.id, DISABLE_VIEW_BOBBING.id, DOMINANT_EYE.id]),
-    ("Controllers", &[CONTROLLER_SMOOTHING.id]),
+    ("Controllers", &[CONTROLLER_SMOOTHING.id, RETICLES.id, RETICLE_PATTERN.id, RETICLE_STYLE.id]),
     ("Advanced", &[DIAGNOSTIC_LOGGING.id, DEV_MODE.id, DEBUG_MENU.id]),
 ];
 

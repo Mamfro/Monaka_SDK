@@ -273,6 +273,21 @@ pub fn credit(beyond: [f32; 3], follow: [f32; 2], dt: f32) {
     state.stats.followed += followed;
 }
 
+/// The body walked `world` (world metres) to follow the head, by the game's own movement rather
+/// than a following velocity: it goes into the anchor, whole.
+pub fn moved(world: [f32; 3]) {
+    if !world.iter().all(|c| c.is_finite()) {
+        return;
+    }
+    let Ok(mut state) = STATE.lock() else { return };
+    let Some((x_axis, z_axis)) = state.axes else { return };
+    let world = [world[0], 0.0, world[2]];
+    // Back into tracking space (the axes are orthonormal).
+    state.anchor[0] += dot(world, x_axis);
+    state.anchor[1] += dot(world, z_axis);
+    state.stats.followed += world[0].hypot(world[2]);
+}
+
 /// A step measured at the next one: the body's position as the previous step began, and what
 /// that step asked (the game's own velocity, the following velocity and the step's length).
 struct LastStep {

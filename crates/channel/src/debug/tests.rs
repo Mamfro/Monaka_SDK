@@ -48,7 +48,7 @@ fn the_games_timing_and_settings_reach_the_viewer() {
     assert!(producer.write_game_text("Stereo method: AFW (Frame-warp)\nFrame generation: Off"));
     let mut costs = [CostTime::default(); monaka_contract::debug_draw::COSTS];
     costs[0] = CostTime { mean_ms: 0.4, worst_ms: 1.2 };
-    let stretch = |frames| Stretch { fps: 71.5, frame_ms: 13.9, worst_frame_ms: 22.0, size: [2644, 2644], frames, costs };
+    let stretch = |frames| Stretch { fps: 71.5, frame_ms: 13.9, worst_frame_ms: 22.0, size: [2644, 2644], frames, costs , work: FrameWork::default()};
     assert!(producer.write_game(&stretch(&[13.0, 14.0, 22.0])));
     let game = viewer.game().unwrap();
     assert_eq!((game.fps, game.frame_ms, game.worst_frame_ms, game.width, game.height), (71.5, 13.9, 22.0, 2644, 2644));

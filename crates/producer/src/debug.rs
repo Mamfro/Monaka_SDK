@@ -10,7 +10,7 @@
 use monaka_channel::ChannelName;
 use monaka_channel::debug::{DebugChannel, Stretch};
 use monaka_core::camera::Mat34;
-use monaka_contract::debug_draw::{COSTS, Categories, Category, Cost, CostTime, DebugDepth, Primitive, axes as axes_of};
+use monaka_contract::debug_draw::{COSTS, Categories, Category, Cost, CostTime, DebugDepth, FrameWork, Primitive, axes as axes_of};
 use monaka_core::sync::Locked;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering::*};
@@ -52,6 +52,7 @@ pub fn open(channel: &ChannelName) {
 
 /// Closes it (the framework does, at the stop).
 pub fn close() {
+    crate::gpu_time::stop();
     READ_AT.store(0, Release);
     DRAWING.store(0, Release);
     WANTED.store(0, Release);
@@ -257,6 +258,21 @@ static TIMING: Mutex<Option<Timing>> = Mutex::new(None);
 /// Monaka's own work this stretch, by [`Cost`]: the total and the longest (ns).
 static COST_NS: [AtomicU64; COSTS] = [const { AtomicU64::new(0) }; COSTS];
 static COST_WORST_NS: [AtomicU64; COSTS] = [const { AtomicU64::new(0) }; COSTS];
+/// The frames' own work this stretch ([`frame_work`]): the total, the longest (ns), and the frames
+/// counted.
+static CPU_NS: AtomicU64 = AtomicU64::new(0);
+static CPU_WORST_NS: AtomicU64 = AtomicU64::new(0);
+static CPU_FRAMES: AtomicU64 = AtomicU64::new(0);
+/// The render thread's CPU time this stretch ([`render_thread`]) and the frames counted; its
+/// smoothed time a frame (ms, as `f32` bits).
+static RENDER_NS: AtomicU64 = AtomicU64::new(0);
+static RENDER_FRAMES: AtomicU64 = AtomicU64::new(0);
+static RENDER_SMOOTH: AtomicU32 = AtomicU32::new(0);
+/// How much of each stretch goes into the smoothed time.
+const RENDER_SHARE: f32 = 0.15;
+/// Stretches between lines in the log saying what frames take to make (a quarter second each).
+const WORK_LOG_EVERY: u64 = 40;
+static WORK_LOGGED: AtomicU64 = AtomicU64::new(0);
 
 /// Whether Monaka's own work is timed now: the viewer shows the Stats panel. One atomic load and a
 /// clock read, as [`on`].
@@ -272,6 +288,22 @@ pub fn cost(cost: Cost, took: std::time::Duration) {
     COST_WORST_NS[cost as usize].fetch_max(ns, Relaxed);
 }
 
+/// How long one frame took from its start until the game was ready for the next, waits for the
+/// headset left out, for the Stats panel: a game that holds its frames to a grid says it, as the
+/// time between frames then only says the grid.
+pub fn frame_work(took: std::time::Duration) {
+    let ns = took.as_nanos().min(u128::from(u64::MAX)) as u64;
+    CPU_NS.fetch_add(ns, Relaxed);
+    CPU_WORST_NS.fetch_max(ns, Relaxed);
+    CPU_FRAMES.fetch_add(1, Relaxed);
+}
+
+/// The render thread's CPU time for one frame, for the Stats panel.
+pub fn render_thread(took: std::time::Duration) {
+    RENDER_NS.fetch_add(took.as_nanos().min(u128::from(u64::MAX)) as u64, Relaxed);
+    RENDER_FRAMES.fetch_add(1, Relaxed);
+}
+
 /// One present of the game's frame, for the Stats panel's game timing: every quarter second the
 /// frame rate, each frame's time and what Monaka's own work cost go to the viewer, with the size
 /// `size` gives (the game's swapchain), asked for only then. Never waits: a busy block keeps the
@@ -282,6 +314,7 @@ pub fn note_present(size: impl FnOnce() -> [u32; 2]) {
     }
     // Read here too: the viewer's wishes are refreshed even in a game that draws nothing.
     let timed = timing();
+    crate::gpu_time::presented(timed);
     let now = std::time::Instant::now();
     let Ok(mut timing) = TIMING.try_lock() else { return };
     let Some(t) = timing.as_mut() else {
@@ -305,9 +338,27 @@ pub fn note_present(size: impl FnOnce() -> [u32; 2]) {
         let (total, worst) = (COST_NS[c as usize].swap(0, Relaxed), COST_WORST_NS[c as usize].swap(0, Relaxed));
         if timed { CostTime { mean_ms: (total as f64 / 1e6 / f64::from(frames)) as f32, worst_ms: (worst as f64 / 1e6) as f32 } } else { CostTime::default() }
     });
+    let (cpu, worst_cpu, cpu_frames) = (CPU_NS.swap(0, Relaxed), CPU_WORST_NS.swap(0, Relaxed), CPU_FRAMES.swap(0, Relaxed));
+    let (render, render_frames) = (RENDER_NS.swap(0, Relaxed), RENDER_FRAMES.swap(0, Relaxed));
+    let mut render_ms = f32::from_bits(RENDER_SMOOTH.load(Relaxed));
+    if render_frames > 0 {
+        let now_ms = (render as f64 / 1e6 / render_frames as f64) as f32;
+        render_ms = if render_ms == 0.0 { now_ms } else { render_ms + (now_ms - render_ms) * RENDER_SHARE };
+        RENDER_SMOOTH.store(render_ms.to_bits(), Relaxed);
+    }
+    let work = FrameWork {
+        gpu_ms: crate::gpu_time::frame_ms(),
+        game_ms: if cpu_frames > 0 { (cpu as f64 / 1e6 / cpu_frames as f64) as f32 } else { 0.0 },
+        worst_game_ms: (worst_cpu as f64 / 1e6) as f32,
+        render_ms,
+    };
+    // Now and then in the log too, to compare runs by.
+    if timed && WORK_LOGGED.fetch_add(1, Relaxed).is_multiple_of(WORK_LOG_EVERY) {
+        crate::log!("frame work: GPU {:.1} ms, render thread {:.1} ms, game thread {:.1} ms (longest {:.1}), {:.1} frames a second", work.gpu_ms, work.render_ms, work.game_ms, work.worst_game_ms, f64::from(frames) * 1000.0 / elapsed_ms);
+    }
     let Ok(mut channel) = CHANNEL.try_lock() else { return };
     let Some(channel) = channel.as_mut() else { return };
-    let stretch = Stretch { fps: (f64::from(frames) * 1000.0 / elapsed_ms) as f32, frame_ms: (t.total_ms / f64::from(frames)) as f32, worst_frame_ms: t.worst_ms as f32, size: size(), frames: &t.times, costs };
+    let stretch = Stretch { fps: (f64::from(frames) * 1000.0 / elapsed_ms) as f32, frame_ms: (t.total_ms / f64::from(frames)) as f32, worst_frame_ms: t.worst_ms as f32, size: size(), frames: &t.times, costs, work };
     if channel.write_game(&stretch) {
         let times = std::mem::take(&mut t.times);
         *t = Timing { times, ..Timing::new(now) };

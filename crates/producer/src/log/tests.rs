@@ -117,3 +117,19 @@ fn the_log_counts_what_it_wrote() {
     log.write_pending();
     assert_eq!(log.written(), std::fs::metadata(&path).unwrap().len());
 }
+
+#[test]
+fn a_restart_keeps_the_log_before_it() {
+    let folder = std::env::temp_dir().join(format!("monaka-log-keep-{}", std::process::id()));
+    std::fs::create_dir_all(&folder).unwrap();
+    let path = folder.join("game.log");
+    super::keep_earlier(&path);
+    assert!(!folder.join("game.1.log").exists(), "nothing to keep");
+    std::fs::write(&path, "first").unwrap();
+    super::keep_earlier(&path);
+    std::fs::write(&path, "second").unwrap();
+    super::keep_earlier(&path);
+    assert_eq!(std::fs::read_to_string(folder.join("game.1.log")).unwrap(), "first");
+    assert_eq!(std::fs::read_to_string(folder.join("game.2.log")).unwrap(), "second");
+    std::fs::remove_dir_all(&folder).unwrap();
+}

@@ -6,7 +6,7 @@
 use crate::shared::SharedBlock;
 use crate::{ChannelName, Result};
 use monaka_contract::protocol::Block;
-use monaka_contract::debug_draw::{COSTS, Categories, CostTime, DEPTH_CANDIDATES, DebugBlock, DebugDepth, DepthCandidate, GameReport, Primitive};
+use monaka_contract::debug_draw::{COSTS, Categories, CostTime, DEPTH_CANDIDATES, DebugBlock, DebugDepth, DepthCandidate, FrameWork, GameReport, Primitive};
 
 const WAIT_MS: u32 = 2;
 /// A side that has not said what it wants or offers for this long (ms) is taken to want or offer
@@ -72,6 +72,7 @@ impl DebugChannel {
         game.push_frames(stretch.frames);
         game.costs = stretch.costs;
         game.tick = crate::tick();
+        record.work = stretch.work;
         true
     }
 
@@ -91,6 +92,12 @@ impl DebugChannel {
             (game.fps, game.frame_ms, game.worst_frame_ms) = (0.0, 0.0, 0.0);
         }
         Some(game)
+    }
+
+    /// Viewer: what the game's frames take to make; nothing once the game stopped saying so.
+    pub fn work(&mut self) -> FrameWork {
+        let Some(record) = self.block.lock(WAIT_MS).tolerant() else { return FrameWork::default() };
+        if crate::tick().saturating_sub(record.game.tick) > SAID_MS { FrameWork::default() } else { record.work }
     }
 
     /// Producer: the depth buffers it saw drawn with, and which it shares (1 the first, 0 none).
@@ -221,6 +228,7 @@ pub struct Stretch<'a> {
     /// Each frame's time (ms) since the last stretch, oldest first.
     pub frames: &'a [f32],
     pub costs: [CostTime; COSTS],
+    pub work: FrameWork,
 }
 
 fn fresh(bits: u64, said: u64) -> Categories {

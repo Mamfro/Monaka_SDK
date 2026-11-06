@@ -993,6 +993,9 @@ pub fn start<G: Game>(session: &'static Session) -> Result<(), Rejection> {
         log!("features: {line}");
     }
     let timer = Timer::start::<G>(armed);
+    if let Some(channel) = &channel {
+        crate::busy::open(channel);
+    }
     // The probe console, with the debug menu's other tools.
     if let Some(channel) = &channel
         && session.has(monaka_contract::manifest::DEBUG_MENU_MARKER)
@@ -1022,6 +1025,7 @@ pub fn stop<G: Game>() -> Result<(), Rejection> {
         timer.stop();
     }
     crate::console::close();
+    crate::busy::close();
     // Each component off in turn, newest first: from here its detours stop acting and its frame
     // work stops; then whatever else it does to stop new work.
     for (place, component) in on.iter().rev() {

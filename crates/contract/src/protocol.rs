@@ -227,13 +227,20 @@ pub const FINGERS_MAJOR: u16 = 3;
 pub const RETICLES_MAGIC: u32 = 0x4c43_5452;
 pub const RETICLES_MAJOR: u16 = 3;
 
+/// A hand's reticle as the game has it: nothing said (it shows while the hand aims), hidden, shown.
+pub const RETICLE_NOT_SAID: u32 = 0;
+pub const RETICLE_HIDDEN: u32 = 1;
+pub const RETICLE_SHOWN: u32 = 2;
+
 /// Where a hand's reticle points instead of the palm's forward, as the producer last said: a
 /// direction in the palm's frame ([`HandPose::palm`]: forward -Z), e.g. along a bow held in it.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ReticleAim {
     pub valid: u32,
-    pub _reserved: u32,
+    /// Whether the game shows this hand's reticle now: [`RETICLE_NOT_SAID`], [`RETICLE_HIDDEN`] or
+    /// [`RETICLE_SHOWN`]. Apart from `valid`: it says nothing of where the reticle points.
+    pub shown: u32,
     pub direction: [f32; 3],
     pub _pad: f32,
     /// `GetTickCount64` when the producer wrote it.
@@ -260,7 +267,7 @@ impl ReticleBlock {
 impl Versioned for ReticleBlock {
     const MAGIC: u32 = RETICLES_MAGIC;
     const MAJOR: u16 = RETICLES_MAJOR;
-    const MINOR: u16 = 0;
+    const MINOR: u16 = 1;
     const WHAT: &'static str = "reticle block";
     const CAPACITY: usize = 4 * 1024;
 
@@ -727,6 +734,8 @@ pub enum Block {
     Panels,
     /// Each eye's depth beside its image ([`DepthBlock`]).
     Depth,
+    /// Slow work the producer is doing ([`crate::busy::BusyBlock`]).
+    Busy,
 }
 
 impl Block {
@@ -742,6 +751,7 @@ impl Block {
             Block::ViewConsole => "view-console",
             Block::Panels => "panels",
             Block::Depth => "depth",
+            Block::Busy => "busy",
         }
     }
 }
@@ -755,6 +765,7 @@ const _: () = {
     assert!(size_of::<DepthBlock>() <= DepthBlock::CAPACITY);
     assert!(size_of::<FenceHeader>() <= FenceHeader::CAPACITY);
     assert!(size_of::<crate::panels::PanelsBlock>() <= crate::panels::PanelsBlock::CAPACITY);
+    assert!(size_of::<crate::busy::BusyBlock>() <= crate::busy::BusyBlock::CAPACITY);
     assert!(size_of::<crate::page::PageBlock>() <= crate::page::PageBlock::CAPACITY);
     assert!(size_of::<crate::console::ConsoleBlock>() <= crate::console::ConsoleBlock::CAPACITY);
     assert!(size_of::<crate::debug_draw::DebugBlock>() <= crate::debug_draw::DebugBlock::CAPACITY);

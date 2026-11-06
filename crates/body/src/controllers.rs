@@ -61,8 +61,18 @@ pub fn close() {
     *FINGERS.locked() = None;
     *SYNTHETIC.locked() = None;
     if let Some(mut reticles) = RETICLES.locked().take() {
-        reticles.write(LEFT_HAND, None);
-        reticles.write(RIGHT_HAND, None);
+        for hand in [LEFT_HAND, RIGHT_HAND] {
+            reticles.write(hand, None);
+            reticles.show(hand, None);
+        }
+    }
+}
+
+/// Whether the game shows hand `side`'s reticle now, for the viewer's Game Based reticles: a hand
+/// with nothing to aim shows none. May be said every frame.
+pub fn show_reticle(side: usize, shown: bool) {
+    if let Some(reticles) = RETICLES.locked().as_mut() {
+        reticles.show(side, Some(shown));
     }
 }
 

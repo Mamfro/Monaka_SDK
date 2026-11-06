@@ -65,6 +65,9 @@ unsafe impl SharedRecord for DepthBlock {
 unsafe impl SharedRecord for FenceHeader {
     const CAPACITY: usize = <Self as Versioned>::CAPACITY;
 }
+unsafe impl SharedRecord for monaka_contract::busy::BusyBlock {
+    const CAPACITY: usize = <Self as Versioned>::CAPACITY;
+}
 unsafe impl SharedRecord for Stamp {}
 
 impl<T: SharedRecord + Versioned> SharedBlock<T> {

@@ -38,6 +38,7 @@ pub mod situation;
 pub mod stream;
 pub mod swing;
 pub mod sync;
+pub mod theme;
 pub mod ticket;
 pub mod trail;
 pub mod x64;

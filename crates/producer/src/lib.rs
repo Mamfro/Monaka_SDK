@@ -26,9 +26,11 @@ use std::sync::{Mutex, OnceLock};
 use monaka_core::sync::Locked;
 
 pub mod builds;
+pub mod busy;
 pub mod console;
 pub mod debug;
 pub mod game;
+pub mod gpu_time;
 pub mod research;
 pub mod ledger;
 pub mod log;
@@ -239,6 +241,7 @@ impl Session {
     /// The session in `dir` (the DLL copy's own folder in a run; a test's folder in tests), and
     /// the thread that writes its log.
     fn open_in(dir: PathBuf, log_name: &str) -> Option<&'static Session> {
+        log::keep_earlier(&dir.join(log_name));
         let log = log::LogFile::create(&dir.join(log_name), monaka_core::scrub::Scrub::from_env()).ok()?;
         let mut opened = false;
         let session = SESSION.get_or_init(|| {

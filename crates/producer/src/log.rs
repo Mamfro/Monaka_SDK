@@ -41,6 +41,18 @@ struct Out {
     written: u64,
 }
 
+/// The log at `path` of an earlier start in the same run (VR restarted with new settings) moved
+/// aside as `<name>.1.log`, `<name>.2.log` and so on, oldest first, so a new one does not end it.
+pub fn keep_earlier(path: &Path) {
+    if !path.is_file() {
+        return;
+    }
+    let (Some(stem), Some(folder)) = (path.file_stem().and_then(|s| s.to_str()), path.parent()) else { return };
+    if let Some(free) = (1..100).map(|n| folder.join(format!("{stem}.{n}.log"))).find(|p| !p.exists()) {
+        let _ = std::fs::rename(path, free);
+    }
+}
+
 impl LogFile {
     pub fn create(path: &Path, scrub: Scrub) -> io::Result<Self> {
         let out = Out { file: File::create(path)?, spare: Vec::with_capacity(64 * 1024), scrubbed: Vec::with_capacity(64 * 1024), scrub, written: 0 };

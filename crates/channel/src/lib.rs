@@ -11,6 +11,7 @@
 //! - [`reader`]: what a channel's producer publishes, for the viewer and the probe.
 //! - [`d3d`], [`d3d12`]: small Direct3D helpers the transports and the producers share.
 
+pub mod busy;
 pub mod console;
 pub mod d3d;
 pub mod debug;
@@ -19,6 +20,7 @@ pub mod d3d12;
 pub mod fence;
 pub mod fence11;
 pub mod fingers;
+pub mod gpu_clock;
 pub mod hands;
 
 pub mod page;

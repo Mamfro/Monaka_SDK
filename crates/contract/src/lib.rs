@@ -13,6 +13,7 @@
 //! The rules for changing any of it are in [`pack`] (the text) and [`protocol`] (the records).
 #![forbid(unsafe_code)]
 
+pub mod busy;
 pub mod console;
 pub mod debug_draw;
 pub mod gamepad;

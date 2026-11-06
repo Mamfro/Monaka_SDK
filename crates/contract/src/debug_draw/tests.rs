@@ -23,8 +23,10 @@ fn debug_block_layout() {
     assert_eq!(offset_of!(DebugBlock, frames), pairs + 24 * DEBUG_PAIRS);
     assert_eq!(
         size_of::<DebugBlock>(),
-        pairs + 24 * DEBUG_PAIRS + size_of::<DebugFrame>() * DEBUG_FRAMES
+        pairs + 24 * DEBUG_PAIRS + size_of::<DebugFrame>() * DEBUG_FRAMES + size_of::<FrameWork>()
     );
+    assert_eq!(size_of::<FrameWork>(), 16);
+    assert_eq!(offset_of!(DebugBlock, work), pairs + 24 * DEBUG_PAIRS + size_of::<DebugFrame>() * DEBUG_FRAMES, "appended: older sides read the rest as before");
 }
 
 #[test]

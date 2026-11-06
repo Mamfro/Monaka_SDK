@@ -379,6 +379,22 @@ pub struct GameReport {
     pub text: [u8; GAME_TEXT],
 }
 
+/// How long the game's frames really take to make, for the Stats panel: not the time between them,
+/// which only says the refresh they are held to. 0 for what is not measured.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct FrameWork {
+    /// The GPU's running time on the game's work a frame (ms): this process's, whatever API drew.
+    pub gpu_ms: f32,
+    /// The game thread's: a frame's time from its start until it was ready for the next, waits for
+    /// the headset left out: the mean and the longest (ms).
+    pub game_ms: f32,
+    pub worst_game_ms: f32,
+    /// The render thread's CPU time a frame (ms), smoothed: the thread's clock moves in steps too
+    /// coarse for a few frames. Where a game draws on a thread of its own, the GL calls cost here.
+    pub render_ms: f32,
+}
+
 /// Where Monaka's own work in the game is timed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -502,6 +518,8 @@ pub struct DebugBlock {
     pub game: GameReport,
     pub pairs: [EyeKeys; DEBUG_PAIRS],
     pub frames: [DebugFrame; DEBUG_FRAMES],
+    /// What the game's frames take to make (appended: a block an older producer writes has none).
+    pub work: FrameWork,
 }
 
 impl DebugBlock {
@@ -530,6 +548,7 @@ impl DebugBlock {
             keys: [0; 2],
         }; DEBUG_PAIRS],
         frames: [DebugFrame::EMPTY; DEBUG_FRAMES],
+        work: FrameWork { gpu_ms: 0.0, game_ms: 0.0, worst_game_ms: 0.0, render_ms: 0.0 },
     };
 
     pub const fn frame_slot(key: u64) -> usize {
@@ -579,7 +598,7 @@ impl DebugBlock {
 impl Versioned for DebugBlock {
     const MAGIC: u32 = DEBUG_MAGIC;
     const MAJOR: u16 = DEBUG_MAJOR;
-    const MINOR: u16 = 0;
+    const MINOR: u16 = 1;
     const WHAT: &'static str = "debug block";
     const CAPACITY: usize = 2 * 1024 * 1024;
 
